@@ -18,7 +18,7 @@ pub struct GoogleUserResult {
     pub email: String,
     pub verified_email: bool,
     pub name: String,
-    pub given_name: String,
+    // pub given_name: String,
     pub picture: String,
 }
 

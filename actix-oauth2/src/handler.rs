@@ -1,8 +1,6 @@
-use std::borrow::Borrow;
-
 use crate::{
     authenticate_token::AuthenticationGuard,
-    google_auth::{get_google_user, request_token, OAuthResponse},
+    google_auth::{get_google_user, request_token},
     model::{AppState, LoginUserSchema, QueryCode, RegisterUserSchema, TokenClaims, User},
     response::{FilteredUser, UserData, UserResponse},
 };
@@ -58,6 +56,8 @@ async fn register_user_handler(
         status: "success".to_string(),
         data: UserData {
             user: user_to_response(&user),
+            id_token: "".to_string(),
+            access_token: "".to_string(),
         },
     };
 
@@ -200,32 +200,34 @@ async fn google_oauth_handler(
         .http_only(true)
         .finish();
 
-    // let json_response = UserResponse {
-    //     status: "success".to_string(),
-    //     data: UserData {
-    //         user: FilteredUser {
-    //             id: google_user.id,
-    //             name: google_user.name.clone(),
-    //             email: google_user.email,
-    //             verified: google_user.verified_email,
-    //             photo: google_user.picture.clone(),
-    //             provider: "Google".to_string(),
-    //             role: "user".to_string(),
-    //             createdAt: Utc::now(),
-    //             updatedAt: Utc::now(),
-    //         },
-    //     },
-    // };
+    let json_response = UserResponse {
+        status: "success".to_string(),
+        data: UserData {
+            user: FilteredUser {
+                id: google_user.id,
+                name: google_user.name.clone(),
+                email: google_user.email,
+                verified: google_user.verified_email,
+                photo: google_user.picture.clone(),
+                provider: "Google".to_string(),
+                role: "user".to_string(),
+                createdAt: Utc::now(),
+                updatedAt: Utc::now(),
+            },
+            id_token: token_response.id_token,
+            access_token: token_response.access_token,
+        },
+    };
 
-    // HttpResponse::Ok()
-    //     .cookie(cookie)
-    //     .json(json_response)
+    HttpResponse::Ok()
+        .cookie(cookie)
+        .json(json_response)
 
-    let frontend_origin = data.env.client_origin.to_owned();
-    let mut response = HttpResponse::Found();
-    response.append_header((LOCATION, format!("{}{}", frontend_origin, state)));
-    response.cookie(cookie);
-    response.finish()
+    // let frontend_origin = data.env.client_origin.to_owned();
+    // let mut response = HttpResponse::Found();
+    // response.append_header((LOCATION, format!("{}{}", frontend_origin, state)));
+    // response.cookie(cookie);
+    // response.finish()
 }
 
 #[get("/auth/logout")]
@@ -256,6 +258,8 @@ async fn get_me_handler(
         status: "success".to_string(),
         data: UserData {
             user: user_to_response(&user.unwrap()),
+            id_token: "".to_string(),
+            access_token: "".to_string(),
         },
     };
 

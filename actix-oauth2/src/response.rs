@@ -18,6 +18,8 @@ pub struct FilteredUser {
 #[derive(Serialize, Debug)]
 pub struct UserData {
     pub user: FilteredUser,
+    pub id_token: String,
+    pub access_token: String,
 }
 
 #[derive(Serialize, Debug)]
