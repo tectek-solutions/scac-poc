@@ -1,6 +1,7 @@
 mod authenticate_token;
 mod config;
 mod google_auth;
+mod microsoft_auth;
 mod handler;
 mod model;
 mod response;

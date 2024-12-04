@@ -29,6 +29,10 @@ pub struct Config {
     pub google_oauth_client_id: String,
     pub google_oauth_client_secret: String,
     pub google_oauth_redirect_url: String,
+    pub microsoft_oauth_client_id: String,
+    pub microsoft_oauth_client_secret_id: String,
+    pub microsoft_oauth_client_secret_value: String,
+    pub microsoft_oauth_redirect_url: String,
 }
 
 impl Config {
@@ -44,6 +48,14 @@ impl Config {
             .expect("GOOGLE_OAUTH_CLIENT_SECRET must be set");
         let google_oauth_redirect_url = std::env::var("GOOGLE_OAUTH_REDIRECT_URL")
             .expect("GOOGLE_OAUTH_REDIRECT_URL must be set");
+        let microsoft_oauth_client_id = std::env::var("MICROSOFT_OAUTH_CLIENT_ID")
+            .expect("MICROSOFT_OAUTH_CLIENT_ID must be set");
+        let microsoft_oauth_client_secret_id = std::env::var("MICROSOFT_OAUTH_CLIENT_SECRET_ID")
+            .expect("MICROSOFT_OAUTH_CLIENT_SECRET_ID must be set");
+        let microsoft_oauth_client_secret_value = std::env::var("MICROSOFT_OAUTH_CLIENT_SECRET_VALUE")
+            .expect("MICROSOFT_OAUTH_CLIENT_SECRET_VALUE must be set");
+        let microsoft_oauth_redirect_url = std::env::var("MICROSOFT_OAUTH_REDIRECT_URL")
+            .expect("MICROSOFT_OAUTH_REDIRECT_URL must be set");
 
         Config {
             client_origin,
@@ -53,6 +65,10 @@ impl Config {
             google_oauth_client_id,
             google_oauth_client_secret,
             google_oauth_redirect_url,
+            microsoft_oauth_client_id,
+            microsoft_oauth_client_secret_id,
+            microsoft_oauth_client_secret_value,
+            microsoft_oauth_redirect_url,
         }
     }
 }

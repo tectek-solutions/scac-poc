@@ -43,7 +43,8 @@ pub struct TokenClaims {
 #[derive(Debug, Deserialize)]
 pub struct QueryCode {
     pub code: String,
-    pub state: String,
+    pub state: Option<String>,
+    pub session_state: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]

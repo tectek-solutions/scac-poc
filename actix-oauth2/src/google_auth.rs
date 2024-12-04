@@ -6,7 +6,7 @@ use std::error::Error;
 use crate::model::AppState;
 
 #[derive(Deserialize)]
-
+// ! THIS STRUCT DECLARATION NEED TO BE MOVED
 pub struct OAuthResponse {
     pub access_token: String,
     pub id_token: String,
@@ -22,7 +22,7 @@ pub struct GoogleUserResult {
     pub picture: String,
 }
 
-pub async fn request_token(
+pub async fn request_google_token(
     authorization_code: &str,
     data: &web::Data<AppState>,
 ) -> Result<OAuthResponse, Box<dyn Error>> {

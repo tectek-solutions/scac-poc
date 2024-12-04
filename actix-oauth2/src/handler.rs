@@ -1,8 +1,9 @@
 use crate::{
     authenticate_token::AuthenticationGuard,
-    google_auth::{get_google_user, request_token},
+    google_auth::{get_google_user, request_google_token},
+    microsoft_auth::{get_microsoft_user, request_microsoft_token, send_connection_mail},
     model::{AppState, LoginUserSchema, QueryCode, RegisterUserSchema, TokenClaims, User},
-    response::{FilteredUser, UserData, UserResponse},
+    response::{FilteredUser, UserData, UserResponse}
 };
 use actix_web::{
     cookie::{time::Duration as ActixWebDuration, Cookie},
@@ -84,7 +85,11 @@ async fn login_user_handler(
     if user.provider == "Google" {
         return HttpResponse::Unauthorized()
             .json(serde_json::json!({"status": "fail", "message": "Use Google OAuth2 instead"}));
-    } // Istead od adding more and more if for each oauth2 provider, make a const array of providers and check if the provider is in the array
+    } else if user.provider == "Microsoft" {
+        return HttpResponse::Unauthorized()
+            .json(serde_json::json!({"status": "fail", "message": "Use Microsoft OAuth2 instead"}));
+    } // Instead od adding more and more if for each oauth2 provider, make a const array of providers and check if the provider is in the array
+
 
     let jwt_secret = data.env.jwt_secret.to_owned();
     let now = Utc::now();
@@ -128,7 +133,7 @@ async fn google_oauth_handler(
         );
     }
 
-    let token_response = request_token(code.as_str(), &data).await;
+    let token_response = request_google_token(code.as_str(), &data).await;
     if token_response.is_err() {
         let message = token_response.err().unwrap().to_string();
         return HttpResponse::BadGateway()
@@ -230,6 +235,142 @@ async fn google_oauth_handler(
     // response.finish()
 }
 
+#[get("/sessions/oauth/microsoft")]
+async fn microsoft_oauth_handler(
+    query: web::Query<QueryCode>,
+    data: web::Data<AppState>,
+) -> impl Responder {
+    let code = &query.code;
+    let state: &String;
+
+    if code.is_empty() {
+        return HttpResponse::Unauthorized().json(
+            serde_json::json!({"status": "fail", "message": "Authorization code not provided!"}),
+        );
+    }
+
+    match &query.state {
+        Some(value) => state = value,
+        None => {
+            match &query.session_state {
+                Some(value) => state = value,
+                None => {
+                    return HttpResponse::Unauthorized().json(
+                        serde_json::json!({"status": "fail", "message": "Invalid state or session_state"}),
+                    );
+                }
+            }
+        }
+    }
+
+    let token_response = request_microsoft_token(code.as_str(), &data).await;
+    if token_response.is_err() {
+        let message = token_response.err().unwrap().to_string();
+        return HttpResponse::BadGateway()
+            .json(serde_json::json!({"status": "fail1", "message": message}));
+    }
+
+    let token_response = token_response.unwrap();
+    let microsoft_user = get_microsoft_user(&token_response.access_token, &token_response.id_token).await;
+    if microsoft_user.is_err() {
+        let message = microsoft_user.err().unwrap().to_string();
+        return HttpResponse::BadGateway()
+            .json(serde_json::json!({"status": "fail2", "message": message}));
+    }
+    let microsoft_user = microsoft_user.unwrap();
+
+    let mut vec = data.db.lock().unwrap();
+    let email = microsoft_user.mail.to_lowercase();
+    let user = vec.iter_mut().find(|user| user.email == email);
+
+    let user_id: String;
+
+    if user.is_some() {
+        let user = user.unwrap();
+        user_id = user.id.to_owned().unwrap();
+        user.email = email.to_owned();
+        user.photo = "photo".to_string();
+        user.updatedAt = Some(Utc::now());
+    } else {
+        let datetime = Utc::now();
+        let id = Uuid::new_v4();
+        user_id = id.to_owned().to_string();
+        let user_data = User {
+            id: Some(id.to_string()),
+            name: microsoft_user.givenName.clone(),
+            verified: true,
+            email,
+            provider: "Google".to_string(),
+            role: "user".to_string(),
+            password: "".to_string(),
+            photo: "".to_string(),
+            createdAt: Some(datetime),
+            updatedAt: Some(datetime),
+        };
+
+        vec.push(user_data.to_owned());
+    }
+
+    let jwt_secret = data.env.jwt_secret.to_owned();
+    let now = Utc::now();
+    let iat = now.timestamp() as usize;
+    let exp = (now + Duration::minutes(data.env.jwt_max_age)).timestamp() as usize;
+    let claims: TokenClaims = TokenClaims {
+        sub: user_id,
+        exp,
+        iat,
+    };
+
+    let token = encode(
+        &Header::default(),
+        &claims,
+        &EncodingKey::from_secret(jwt_secret.as_ref()),
+    )
+    .unwrap();
+
+    let cookie = Cookie::build("token", token)
+        .path("/")
+        .max_age(ActixWebDuration::new(60 * data.env.jwt_max_age, 0))
+        .http_only(true)
+        .finish();
+
+    let json_response = UserResponse {
+        status: "success".to_string(),
+        data: UserData {
+            user: FilteredUser {
+                id: microsoft_user.id,
+                name: microsoft_user.givenName.clone(),
+                email: microsoft_user.mail,
+                verified: true,
+                photo: "".to_string(),
+                provider: "Microsoft".to_string(),
+                role: "user".to_string(),
+                createdAt: Utc::now(),
+                updatedAt: Utc::now(),
+            },
+            id_token: token_response.id_token,
+            access_token: token_response.access_token,
+        },
+    };
+
+    let mail_result = send_connection_mail(&json_response.data.access_token, &json_response.data.id_token, &data).await;
+    if mail_result.is_err() {
+        let message = mail_result.err().unwrap().to_string();
+        return HttpResponse::BadGateway()
+            .json(serde_json::json!({"status": "fail3", "message": message}));
+    }
+
+    HttpResponse::Ok()
+        .cookie(cookie)
+        .json(json_response)
+
+    // let frontend_origin = data.env.client_origin.to_owned();
+    // let mut response = HttpResponse::Found();
+    // response.append_header((LOCATION, format!("{}{}", frontend_origin, state)));
+    // response.cookie(cookie);
+    // response.finish()
+}
+
 #[get("/auth/logout")]
 async fn logout_handler(_: AuthenticationGuard) -> impl Responder {
     let cookie = Cookie::build("token", "")
@@ -286,6 +427,7 @@ pub fn config(conf: &mut web::ServiceConfig) {
         .service(register_user_handler)
         .service(login_user_handler)
         .service(google_oauth_handler)
+        .service(microsoft_oauth_handler)
         .service(logout_handler)
         .service(get_me_handler);
 
