@@ -1,7 +1,7 @@
 use actix_web::web;
 use diesel::deserialize;
 use reqwest::{Client, Url};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::{error::Error, process::id};
 
 use crate::{
@@ -73,24 +73,24 @@ pub async fn get_microsoft_user(
     }
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct DraftBody {
     pub contentType: String,
     pub content: String,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct DraftRecipientEmail {
     pub address: String,
     pub name: String,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct DraftRecipient {
     pub emailAddress: DraftRecipientEmail,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct Draft {
     pub id: String,
     pub subject: String,
@@ -106,31 +106,29 @@ pub async fn send_connection_mail(
     let client = Client::new();
     let url = Url::parse("https://graph.microsoft.com/v1.0/me/messages").unwrap();
 
-    let message =
-r#"
-{
-    "body": {
-        "contentType": "text",
-        "content": "Bonjour, Benjamin. Je me suis bien connecté à AREA."
-    },
-    "subject": "AREA - Connexion",
-    "toRecipients": [
-        {
-            "emailAddress": {
-                "address": "benjamin.lauret@epitech.eu",
-                "name": "Benjamin Lauret"
-            }
-        }
-    ]
-}
-"#;
+    let draft: Draft = Draft {
+        id: "".to_string(),
+        subject: "AREA - Connexion".to_string(),
+        body: DraftBody {
+            contentType: "text".to_string(),
+            content: "Bonjour, Benjamin. Je me suis bien connecté à AREA.".to_string(),
+        },
+        toRecipients: vec![DraftRecipient {
+            emailAddress: DraftRecipientEmail {
+                address: "benjamin.lauret@epitech.eu".to_string(),
+                name: "Benjamin Lauret".to_string(),
+            },
+        }],
+    };
+
+    let json_draft = serde_json::to_string(&draft)?;
 
     let response = client
         .post(url)
         .header("Authorization", format!("Bearer {}", access_token))
-        .header("Content-Length", message.len())
+        .header("Content-Length", json_draft.len())
         .header("Content-Type", "application/json")
-        .body(message)
+        .body(json_draft)
         .send()
         .await?;
 
