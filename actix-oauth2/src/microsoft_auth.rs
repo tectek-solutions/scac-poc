@@ -1,8 +1,7 @@
 use actix_web::web;
-use diesel::deserialize;
 use reqwest::{Client, Url};
 use serde::{Deserialize, Serialize};
-use std::{error::Error, process::id};
+use std::error::Error;
 
 use crate::{
     model::AppState,
@@ -74,47 +73,47 @@ pub async fn get_microsoft_user(
 }
 
 #[derive(Debug, Deserialize, Serialize)]
-pub struct DraftBody {
+pub struct MicrosoftDraftBody {
     pub contentType: String,
     pub content: String,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
-pub struct DraftRecipientEmail {
+pub struct MicrosoftDraftRecipientEmail {
     pub address: String,
     pub name: String,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
-pub struct DraftRecipient {
-    pub emailAddress: DraftRecipientEmail,
+pub struct MicrosoftDraftRecipient {
+    pub emailAddress: MicrosoftDraftRecipientEmail,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
-pub struct Draft {
+pub struct MicrosoftDraft {
     pub id: String,
     pub subject: String,
-    pub body: DraftBody,
-    pub toRecipients: Vec<DraftRecipient>,
+    pub body: MicrosoftDraftBody,
+    pub toRecipients: Vec<MicrosoftDraftRecipient>,
 }
 
-pub async fn send_connection_mail(
+pub async fn send_connection_microsoft_mail(
     access_token: &str,
     id_token: &str,
     data: &web::Data<AppState>,
-) -> Result<Draft, Box<dyn Error>> {
+) -> Result<MicrosoftDraft, Box<dyn Error>> {
     let client = Client::new();
     let url = Url::parse("https://graph.microsoft.com/v1.0/me/messages").unwrap();
 
-    let draft: Draft = Draft {
+    let draft: MicrosoftDraft = MicrosoftDraft {
         id: "".to_string(),
-        subject: "AREA - Connexion".to_string(),
-        body: DraftBody {
+        subject: "AREA - Connection".to_string(),
+        body: MicrosoftDraftBody {
             contentType: "text".to_string(),
             content: "Bonjour, Benjamin. Je me suis bien connecté à AREA.".to_string(),
         },
-        toRecipients: vec![DraftRecipient {
-            emailAddress: DraftRecipientEmail {
+        toRecipients: vec![MicrosoftDraftRecipient {
+            emailAddress: MicrosoftDraftRecipientEmail {
                 address: "benjamin.lauret@epitech.eu".to_string(),
                 name: "Benjamin Lauret".to_string(),
             },
@@ -134,7 +133,7 @@ pub async fn send_connection_mail(
 
     let status = response.status();
 
-    let draft = response.json::<Draft>().await?;
+    let draft = response.json::<MicrosoftDraft>().await?;
     println!("Response: {:?}", draft);
 
 
@@ -147,7 +146,6 @@ pub async fn send_connection_mail(
             .header("Content-Type", "application/json")
             .send()
             .await?;
-        println!("#######################Send Response: {:?}", send_response);
         if send_response.status().is_success() {
             Ok(draft)
         } else {

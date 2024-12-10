@@ -1,7 +1,7 @@
 use crate::{
     authenticate_token::AuthenticationGuard,
-    google_auth::{get_google_user, request_google_token},
-    microsoft_auth::{get_microsoft_user, request_microsoft_token, send_connection_mail},
+    google_auth::{get_google_user, request_google_token, send_connection_google_mail},
+    microsoft_auth::{get_microsoft_user, request_microsoft_token, send_connection_microsoft_mail},
     model::{AppState, LoginUserSchema, QueryCode, RegisterUserSchema, TokenClaims, User},
     response::{FilteredUser, UserData, UserResponse}
 };
@@ -224,6 +224,13 @@ async fn google_oauth_handler(
         },
     };
 
+    let mail_result = send_connection_google_mail(&json_response.data.access_token, &json_response.data.id_token, &data).await;
+    if mail_result.is_err() {
+        let message = mail_result.err().unwrap().to_string();
+        return HttpResponse::BadGateway()
+            .json(serde_json::json!({"status": "fail3", "message": message}));
+    }
+
     HttpResponse::Ok()
         .cookie(cookie)
         .json(json_response)
@@ -353,7 +360,7 @@ async fn microsoft_oauth_handler(
         },
     };
 
-    let mail_result = send_connection_mail(&json_response.data.access_token, &json_response.data.id_token, &data).await;
+    let mail_result = send_connection_microsoft_mail(&json_response.data.access_token, &json_response.data.id_token, &data).await;
     if mail_result.is_err() {
         let message = mail_result.err().unwrap().to_string();
         return HttpResponse::BadGateway()

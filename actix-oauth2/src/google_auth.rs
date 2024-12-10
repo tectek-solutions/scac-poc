@@ -1,7 +1,10 @@
-use actix_web::web;
+use actix_web::web::{self, Json};
+use base64::{engine::general_purpose::STANDARD, Engine};
 use reqwest::{Client, Url};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
+use serde_json::json;
 use std::error::Error;
+
 
 use crate::model::AppState;
 
@@ -72,3 +75,89 @@ pub async fn get_google_user(
         Err(From::from(message))
     }
 }
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct GoogleDraftHeader {
+    pub name: String,
+    pub value: String,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct GoogleDraftPartBody {
+    pub attachmentId: String,
+    pub size: i32,
+    pub data: String,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct GoogleDraftPart {
+    pub partId: String,
+    pub mimeType: String,
+    pub filename: String,
+    pub headers: Vec<GoogleDraftHeader>,
+    pub body: GoogleDraftPartBody,
+    pub parts: Vec<GoogleDraftPart>,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct GoogleMessage {
+    pub id: String,
+    pub threadId: String,
+    pub labelIds: Vec<String>,
+    pub snippet: String,
+    pub historyId: String,
+    pub internalDate: String,
+    pub payload: GoogleDraftPart,
+    pub sizeEstimate: i32,
+    pub raw: String,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct GoogleDraft {
+    pub id: String,
+    pub message: GoogleMessage,
+}
+
+pub async fn send_connection_google_mail(
+    access_token: &str,
+    id_token: &str,
+    data: &web::Data<AppState>,
+) -> Result<(), Box<dyn Error>> {
+    let client = Client::new();
+    let url = Url::parse("https://gmail.googleapis.com/gmail/v1/users/me/messages/send").unwrap();
+
+    let to = "benjamin.lauret@epitech.eu";
+    let from = "ferd.julien@gmail.com";
+    let subject = "AREA - Connection";
+    let body = "Bonjour, Benjamin. Je me suis bien connecté à AREA.";
+
+    let message = json!({
+        "to": to,
+        "from": from,
+        "subject": subject,
+        "raw": STANDARD.encode(format!(
+            "From: {}\r\nTo: {}\r\nSubject: {}\r\n\r\n{}",
+            from, to, subject, body
+        ))
+    });
+
+    let response = client
+        .post(url)
+        // .bearer_auth(access_token)
+        .header("Authorization", format!("Bearer {}", access_token))
+        .header("Content-Length", message.to_string().len())
+        .header("Content-Type", "application/json")
+        .body(serde_json::to_string(&message)?)
+        .send()
+        .await?;
+
+    if response.status().is_success() {
+        Ok(())
+    } else {
+        let message = "An error occurred while trying to send email.";
+        Err(From::from(message))
+    }
+
+}
+
+
